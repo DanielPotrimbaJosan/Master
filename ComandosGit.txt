@@ -1,0 +1,13 @@
+Desde la carpeta del repositorio:
+
+en cmd git:
+git init
+git add . (si quieres añadir todos los cambios)
+
+git commit -m "mensaje que aparecera a lado de lo subido"
+
+git remote add origin (link github) (para enlazar con el github la carpeta que quieras subir)
+
+git push -u origin master (para subir ya todo)
+
+git pull -u origin master (para bajar del github a tu ordenador)
