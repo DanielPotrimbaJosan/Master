@@ -1,17 +1,30 @@
+#include <HardwareSerial.h>
+#include <MPU9250_asukiaaa.h>
+
 #include <Arduino.h>
 #include <FreeRTOSConfig.h>
-#include <HardwareSerial.h>
+
 //Libreria para el I2C
 #include <Wire.h>
 
 
-//Defincion del Accelerometro
-#define ACC_FULL_SCALE_2G 0x00
+#ifdef _ESP32_HAL_I2C_H_
+//Definimos los pines del sensor MPU9265
+#define SDA_PIN 21
+#define SCL_PIN 22
+#endif
+
+//Asignacion del componente
+MPU9250_asukiaaa Misensor;
+
+//
+TaskHandle_t EndLedTask;
+
 //Direccion del MPU
 const int MPU=0x68;
-//Declaramos las variables como doble int
-double ACC_X,ACC_Y,ACC_Z;
 
+//Declaramos las variables de tipo float
+float ACC_X,ACC_Y,ACC_Z;
 
 //Definicion Variables
 const int LedPin=5; //Salida del Led del ESP32
@@ -26,69 +39,42 @@ void setup()
 {
   //Comunicacion del puerto serie
   Serial.begin(112500);
-  delay(100);
-   //Comunicacion I2C
-  Wire.begin();
-  //Velocidad de comunicacion del puerto I2C
-  Wire.setClock(100000);
-  delay(100);
-  //Encedemos el MPU9265 donde esta el acelerometro
-  Wire.beginTransmission(MPU);
-  Wire.write(0x6B);  // Power register
-  Wire.write(0);     // Ponemos a 0 para despertar el MPU-6050
-  Wire.endTransmission();
-  delay(100);
+  pinMode(LedPin,OUTPUT);
 
-  //Configuramos el Accelerometro
-  Wire.beginTransmission(MPU);
-  Wire.write(0x1C);
-  Wire.write(ACC_FULL_SCALE_2G);
-  Wire.endTransmission();
+  #ifdef _ESP32_HAL_I2C_H_
+  //Comunicacion por I2C por los pines asignados
+  Wire.begin(SDA_PIN,SCL_PIN);
+  Misensor.setWire(&Wire);
+  #endif
+  Misensor.beginAccel();
   delay(100);
+ 
 
 //Tarea,Nombre Tarea,Tamaño de la pila,Parametros Necesarios para la tarea,Prioridad,Argumentos
-  xTaskCreate(ParpadeoLed, "ParpadeoLed",1000,NULL,1,NULL);
-  xTaskCreate(Acelerometro, "Acelerometro",1000,NULL,2,NULL);
+  xTaskCreate(Acelerometro, "Acelerometro",1000,NULL,1,NULL);
   xTaskCreate(Consola,"Consola",1000,NULL,1,NULL);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(1000);
+  //Almacenamos en las 3 variables generadas las posiciones del accelerometro
+
+  delay(100);
 
 }
+
 
 //Generamos tarea 1
-void ParpadeoLed (void *ledParametro)
-{
-  pinMode(LedPin,OUTPUT);
-  while(1)
-  { 
-    //Encendemos el Led y despues de 100ms lo apagamos y asi en bucle
-    digitalWrite(LedPin,HIGH);
-    vTaskDelay(DelayLed);
-    digitalWrite(LedPin,LOW);
-    vTaskDelay(DelayLed);
-    
-    
-  }
-  //Es un bucle pero si por alguna razon se saliera, matamos la tarea.
-  vTaskDelete(NULL);
-}
-
-//Generamos tarea 2
 void Acelerometro (void*AcelerometroParametro)
 {
   while(1)
   {
-  Wire.beginTransmission(MPU);
-  Wire.write(0x3B);
-  Wire.endTransmission();
-  Wire.requestFrom(MPU,14); //Lectura de 14 bytes del MPU
-  //Conversion de registros 
-  ACC_X=(int16_t)(Wire.read()<<8|Wire.read())/16384.00;
-  ACC_Y=(int16_t)(Wire.read()<<8|Wire.read())/16384.00;
-  ACC_Z=(int16_t)(Wire.read()<<8|Wire.read())/16384.00;
+
+  //Almacenamos en las 3 variables generadas las posiciones del accelerometro
+  Misensor.accelUpdate();
+  ACC_X=Misensor.accelX();
+  ACC_Y=Misensor.accelY();
+  ACC_Z=Misensor.accelZ();
   //Cada 100ms leemos los valores
   vTaskDelay(DelayAcc);
     
@@ -96,21 +82,33 @@ void Acelerometro (void*AcelerometroParametro)
   //Es un bucle pero si por alguna razon se saliera, matamos la tarea.
   vTaskDelete(NULL);
 }
-//Generamos tarea 3
+//Generamos tarea 2
 void Consola (void *ConsolaParametro)
 {
   pinMode(LedPin,OUTPUT);
   while(1)
   { 
-    Serial.print("Acc X: ");
-    Serial.println(ACC_X);
-    Serial.print("Acc Y: ");
-    Serial.println(ACC_Y);
-    Serial.print("Acc Z: ");
-    Serial.println(ACC_Z);
-    vTaskDelay(DelayConsola);
+  Serial.println("ACC_X:" + String(ACC_X));
+  Serial.println("ACC_Y:" + String(ACC_Y));
+  Serial.println("ACC_Z:" + String(ACC_Z));
+  
+  //Generamos dentro de la tarea de Consola con prioridad 2(menor) y con un argumento de EndLedTask
+  xTaskCreate(ParpadeoLed, "ParpadeoLed",1000,NULL,2,&EndLedTask);
   }
   //Es un bucle pero si por alguna razon se saliera, matamos la tarea.
   vTaskDelete(NULL);
+}
+
+//Generamos tarea 3
+void ParpadeoLed (void *ledParametro)
+{
+    //Encendemos el Led y despues de 100ms lo apagamos y asi en bucle
+    vTaskDelay(DelayConsola);
+    digitalWrite(LedPin,HIGH);
+    vTaskDelay(DelayLed);
+    digitalWrite(LedPin,LOW);
+    vTaskDelay(DelayLed);
+  //Matamos la tarea con el EndLedTask
+  vTaskDelete(EndLedTask);
 }
 

@@ -11,3 +11,9 @@ git remote add origin (link github) (para enlazar con el github la carpeta que q
 git push -u origin master (para subir ya todo)
 
 git pull -u origin master (para bajar del github a tu ordenador)
+
+
+
+
+
+si guardas en la carpeta una archivo de texto con .md ( al subirlo te lo va a monstrar en la pantalla directamente README.md)

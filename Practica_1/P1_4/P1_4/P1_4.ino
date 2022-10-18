@@ -21,12 +21,13 @@ const int canal=0;
 //De esta manera sera de 8 bits de 0 a 255
 const int resolucion=8; 
 
-//Almacenamos los datos de UART en un string
-String dato;
-String dato_aux;
-boolean EscrituraCompletada=false;
+boolean FinTransmision=false;
+//Para almacenar los datos de UART en un string
 String tiempo_X;
 String duty;
+
+String CaracteresEntrada= "";
+String CaracteresEntradaAux;
 
 //Valor Entero del valor para el temporiador
 int X_Entero;
@@ -64,84 +65,61 @@ void setup() {
   ledcSetup(LedPin,freq,resolucion);
   ledcAttachPin(LedPin,canal);
 }
-//Recogida de dato de forma "asincrona" no es una funcion asincrona, como una interrupcion. 
-//Nuevo dato en el buffer serial, se ejecutara el serialEvent.
-void serialEvent()
+
+void loop() 
 {
-  while (Serial.available())
-  {
-    char entradaByte= Serial.read();
-    dato+=entradaByte; // Agregamos el byte de la entrada al string dato
-      if(entradaByte == '\n')
-      {
-        //Se quita el salto de la linea final
-        dato.trim();
-        //Guardamos el dato en una variable auxiliar antes de borrarlo
-        dato_aux=dato;
-        //Borramos el dato para volver a rellenarlo
-        dato= "";
-
-        //La escritura se ha completado
-        EscrituraCompletada=true;
-
-      }
-  }
-}
-
-void loop() {
   // put your main code here, to run repeatedly:
-
- if (EscrituraCompletada)
- {
-   if(dato_aux.equals("ADC"))
-   {
-     //Agregamos el valor analogico medido por el potenciometro en una variable de tipo float
-     valorPotenciometro= analogRead(Epotenciometro);
-     //Hay que escalarla a 3.3V porque el valor que nos dara sera de 0 a 4095
-     valorPotenciometro_N= valorPotenciometro* (3.3/4095); 
-     //Sacamos por pantalla el valor
-     Serial.print ("Valor del ADC: ");
-     Serial.println(valorPotenciometro_N);
-     EscrituraCompletada=false;
-   }
-  //Chequeamos que en el string tengamos ADC( , de esta manera sabremos diferenciar del ADC normal
-  //para poder modificar el timer
-  else if (dato_aux.indexOf("ADC(")==0)
+  if (FinTransmision)
   {
-    //Nos quedamos con valor de la posicion 4 del string
-      tiempo_X= dato_aux.substring(4,6);
-    //Pasamos este valor a entero
-    X_Entero=tiempo_X.toInt();
-    X_seg=X_Entero*1000000;
-    if (X_Entero != 0)
-    {
-      timerAlarmWrite(timer,X_seg,true);
-      timerAlarmEnable(timer);
-      if (ContadorInterrupcion > 0)
-        {
-          portENTER_CRITICAL(&timerMux);
-          ContadorInterrupcion--;
-          portEXIT_CRITICAL(&timerMux);
+    
+      //Comparamos el String de la consola en este caso con lo que hay en ""
+   if(CaracteresEntradaAux.equals("ADC"))
+      {
+        //Agregamos el valor analogico medido por el potenciometro en una variable de tipo float
+        valorPotenciometro= analogRead(Epotenciometro);
+        //Hay que escalarla a 3.3V porque el valor que nos dara sera de 0 a 4095
+        valorPotenciometro_N= valorPotenciometro* (3.3/4095); 
+        //Sacamos por pantalla el valor
+        Serial.print ("Valor del ADC: ");
+        Serial.println(valorPotenciometro_N);
+        FinTransmision=false; // PARA PARAR LA TRANSMISION
+      }
+  
+      //Si el texto escrito en la consola empieza con ADC( entonces cogeremos la siguiente posicion para el tiempo
+      // y que se acabe con la ) cogeremos el valor de dentro
+    else if (CaracteresEntradaAux.startsWith("ADC(") && CaracteresEntradaAux.endsWith(")") ) 
+      {
+        tiempo_X= CaracteresEntradaAux.substring(4,6);
+        //Pasamos este valor a entero
+        X_Entero=tiempo_X.toInt();
+        X_seg=X_Entero*1000000;
+          if (X_Entero != 0)
+            {
+              timerAlarmWrite(timer,X_seg,true);
+              timerAlarmEnable(timer);
+              if (ContadorInterrupcion > 0)
+                {
+                  portENTER_CRITICAL(&timerMux);
+                  ContadorInterrupcion--;
+                  portEXIT_CRITICAL(&timerMux);
 
-          ContadorInterrupcion++;
+                  //ContadorInterrupcion++;
 
-          //Leemos de nuevo el valor y lo muestreamos por pantalla
-          valorPotenciometro=analogRead(Epotenciometro);
-          valorPotenciometro_N= valorPotenciometro* (3.3/4095); 
-          Serial.print("Valor ADC: ");
-          Serial.println(valorPotenciometro_N);
-          Serial.println("Valor del Temporizador: ");
-          Serial.println(X_seg);
-
-        }
-
-    }
-
-  }
-  else if (dato_aux.indexOf("PWM(")==0)
+                  //Leemos de nuevo el valor y lo muestreamos por pantalla
+                  valorPotenciometro=analogRead(Epotenciometro);
+                  valorPotenciometro_N= valorPotenciometro* (3.3/4095); 
+                  Serial.print("Valor ADC: ");
+                  Serial.println(valorPotenciometro_N);
+                  Serial.print("Valor del Temporizador: ");
+                  Serial.println(X_Entero);
+                }
+            }
+       }
+  
+  /*else if (CaracteresEntrada.indexOf("PWM(")==0)
   {
     //Nos quedamos con el dato despues del parentesis
-    duty=dato_aux.substring(4,6);
+    duty=CaracteresEntrada.substring(4,6);
     //Pasamos el dato a tipo INT y luego lo almacenamos en la variable dutyPWM 
     dutyPWM=duty.toInt();
     //Escalamos el valor de entrada por consola de 0 a 9 -> 0 a 255
@@ -149,7 +127,35 @@ void loop() {
     //Le metemos el duty programado para el PWM para el led
     ledcWrite(canal,dutyPWM);
 
-  }
+  }*/
+  
+  }      
+}
+//La funcion te permite recibir datos de una forma asincrona, no es asincrona
+// Se ejecuta en cada iteracion de la funcion loop 
+//Se ejecutara si hay algun dato en el buffer del puerto serial (en este caso la consola)
 
- }
+void serialEvent()
+{
+
+  //Con este comando podemos saber si existe algun dato 
+  while (Serial.available())
+  {
+    //leemos el dato recibido de 1 byte
+    char LecturaConsola= Serial.read();
+    CaracteresEntrada+=LecturaConsola; // Se agrega los caracteres leidos a la variable de tipo string
+      //Si el dato recibido es un fin de linea, mediante \n sabremos que ya se termino la transmision
+      if(LecturaConsola == '\n') 
+      {
+        //La escritura se ha completado
+        FinTransmision=true;
+        
+        //Se quita el salto de la linea final sino no funciona
+        CaracteresEntrada.trim();
+        //Guardamos el dato en una variable auxiliar antes de borrarlo
+        CaracteresEntradaAux= CaracteresEntrada;
+        //Borramos el dato para volver a rellenarlo
+        CaracteresEntrada= "";
+      }
+  }
 }
