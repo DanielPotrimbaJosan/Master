@@ -28,7 +28,7 @@ const int LedPin=5; //Salida del Led del ESP32
 //Mediante porTick_Rate_MS estamos declarando la variable DelayLed que sera 200ms
 const portTickType DelayLed =200 / portTICK_RATE_MS;
 const portTickType DelayConsola=1000 / portTICK_RATE_MS;
-const portTickType DelayAcc=100 / portTICK_RATE_MS;
+
 
 
 
@@ -49,35 +49,20 @@ void setup()
  
 
 //Tarea,Nombre Tarea,Tamaño de la pila,Parametros Necesarios para la tarea,Prioridad,Argumentos
-  xTaskCreate(Acelerometro, "Acelerometro",1000,NULL,1,NULL);
   xTaskCreate(Consola,"Consola",1000,NULL,1,NULL);
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  delay(100);
-
-}
-
-
-//Generamos tarea 1
-void Acelerometro (void*AcelerometroParametro)
-{
-  
-  while(1)
-  {
-    
-    //Almacenamos en las 3 variables generadas las posiciones del accelerometro
-    Misensor.accelUpdate();
+   //Almacenamos en las 3 variables generadas las posiciones del accelerometro
+      Misensor.accelUpdate();
       ACC_X=Misensor.accelX();
       ACC_Y=Misensor.accelY();
       ACC_Z=Misensor.accelZ();
-      //Cada 100ms leemos los valores
-      vTaskDelay(DelayAcc);
-  }
-  //Es un bucle pero si por alguna razon se saliera, matamos la tarea.
-  vTaskDelete(NULL);
+      delay(100);
+
 }
+
 //Generamos tarea 2
 void Consola (void *ConsolaParametro)
 {
@@ -107,6 +92,7 @@ void ParpadeoLed (void *ledParametro)
     vTaskDelay(DelayLed);
     digitalWrite(LedPin,LOW);
     vTaskDelay(DelayLed);
+    //Matamos la tarea con el EndLedTask
     vTaskDelete(NULL);
 }
 

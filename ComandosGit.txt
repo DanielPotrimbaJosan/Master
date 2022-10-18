@@ -1,5 +1,8 @@
 Desde la carpeta del repositorio:
 
+cd .. para ir atras
+cd "localizacion" para mvoerte por las carpetas
+
 en cmd git:
 git init
 git add . (si quieres añadir todos los cambios)
